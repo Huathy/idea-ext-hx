@@ -1,0 +1,72 @@
+<idea-plugin url="https://github.com/huathy/idea-ext-hx" require-restart="false">
+  <id>com.huathy.idea-ext-hx</id>
+  <name>Idea Ext HX</name>
+  <version>1.1.0</version>
+  <vendor name="huathy" url="https://github.com/huathy"/>
+
+  <description><![CDATA[
+  <p>Idea Ext HX —— IntelliJ IDEA 实用增强工具集。</p>
+  <p><b>功能清单：</b></p>
+  <ol>
+    <li><b>隐藏试用推广按钮</b>：移除主工具栏右上角 "Start Free Trial" 试用按钮（IDE 内置 TrialStateWidget）。
+        <ul>
+          <li>按 Action ID 精准定位，与界面语言无关，中文界面同样生效</li>
+          <li>从 MainToolbarRight 工具栏组注销，IDE 重建工具栏时按钮不会复活</li>
+          <li>欢迎屏与项目窗口均生效</li>
+        </ul>
+    </li>
+    <li><b>AI 生成约定式提交信息</b>：在提交对话框的提交信息输入框工具栏新增 "AI 生成提交信息" 按钮。
+        <ul>
+          <li>自动读取暂存区 git diff，调用 AI 生成中文约定式提交信息并填入输入框</li>
+          <li>默认提示词模板为「约定式提交信息生成器」，可在设置中自定义</li>
+          <li>支持自定义 AI 供应商：Base URL / API Key / 模型名</li>
+          <li>支持自定义请求协议：请求体模板含 ${model} ${prompt} ${diff} 占位符</li>
+          <li>支持自定义响应解析路径（如 choices[0].message.content）</li>
+          <li>兼容 OpenAI Chat Completions 协议，可适配其他兼容服务</li>
+          <li>配置入口：Settings → Tools → AI Commit Message</li>
+        </ul>
+    </li>
+  </ol>
+  ]]></description>
+
+  <change-notes><![CDATA[
+  <p><b>1.1.0</b></p>
+  <ul>
+    <li>新增功能：AI 生成约定式提交信息（自定义供应商/协议/提示词）</li>
+    <li>插件重命名为 Idea Ext HX，集成多项增强功能</li>
+    <li>保留：隐藏 Start Free Trial 试用按钮</li>
+  </ul>
+  <p><b>1.0.0</b></p>
+  <ul>
+    <li>初始版本：隐藏右上角 Start Free Trial 试用按钮</li>
+  </ul>
+  ]]></change-notes>
+
+  <!-- 兼容 IntelliJ IDEA 2025.1 ~ 2026.1 -->
+  <idea-version since-build="251" until-build="261.*"/>
+
+  <depends>com.intellij.modules.platform</depends>
+  <depends>com.intellij.modules.vcs</depends>
+
+  <applicationListeners>
+    <listener class="com.huathy.ideaext.TrialPromotionHider"
+              topic="com.intellij.ide.AppLifecycleListener"/>
+  </applicationListeners>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <applicationService serviceImplementation="com.huathy.ideaext.ai.AiCommitSettings"/>
+    <applicationConfigurable parentId="tools"
+                            id="idea-ext-hx.ai-commit"
+                            displayName="AI Commit Message"
+                            instance="com.huathy.ideaext.ai.AiCommitConfigurable"/>
+  </extensions>
+
+  <actions>
+    <action id="IdeaExtHx.GenerateAiCommitMessage"
+            class="com.huathy.ideaext.ai.GenerateAiCommitMessageAction"
+            text="AI 生成提交信息"
+            description="根据暂存区 diff 生成约定式提交信息">
+      <add-to-group group-id="Vcs.MessageActionGroup" anchor="last"/>
+    </action>
+  </actions>
+</idea-plugin>
