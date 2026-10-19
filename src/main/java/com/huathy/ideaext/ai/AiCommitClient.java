@@ -33,31 +33,32 @@ public final class AiCommitClient {
     }
 
     /** 用记忆协议（未记忆则先 HTTP/2 降级 HTTP/1.1）生成提交信息。 */
-    public static String generate(@NotNull AiCommitSettings.State cfg, @NotNull String gitDiff) throws Exception {
+    public static String generate(@NotNull AiCommitSettings.State cfg, @NotNull String apiKey,
+                                  @NotNull String gitDiff) throws Exception {
         HttpClient.Version ver = resolveVersion(cfg.httpVersion);
         if (ver != null) {
-            return doGenerate(cfg, gitDiff, ver);
+            return doGenerate(cfg, apiKey, gitDiff, ver);
         }
         // 未探测：先试 HTTP/2，连接级失败降级 HTTP/1.1
         try {
-            return doGenerate(cfg, gitDiff, HttpClient.Version.HTTP_2);
+            return doGenerate(cfg, apiKey, gitDiff, HttpClient.Version.HTTP_2);
         } catch (IOException io) {
-            return doGenerate(cfg, gitDiff, HttpClient.Version.HTTP_1_1);
+            return doGenerate(cfg, apiKey, gitDiff, HttpClient.Version.HTTP_1_1);
         }
     }
 
     /** 探测可用协议：先 HTTP/2，连接级失败降级 HTTP/1.1，返回成功协议与回复。 */
-    public static ProbeResult test(@NotNull AiCommitSettings.State cfg) throws Exception {
+    public static ProbeResult test(@NotNull AiCommitSettings.State cfg, @NotNull String apiKey) throws Exception {
         String fakeDiff = "diff --git a/test.txt b/test.txt\n"
                 + "index 0000000..1111111 100644\n--- /dev/null\n+++ b/test.txt\n"
                 + "@@ -0,0 +1 @@\n+hello world\n";
         try {
-            String reply = doGenerate(cfg, fakeDiff, HttpClient.Version.HTTP_2);
+            String reply = doGenerate(cfg, apiKey, fakeDiff, HttpClient.Version.HTTP_2);
             return new ProbeResult(PROTO_HTTP_2, reply);
         } catch (IOException ignore) {
             // HTTP/2 不通，降级 HTTP/1.1
         }
-        String reply = doGenerate(cfg, fakeDiff, HttpClient.Version.HTTP_1_1);
+        String reply = doGenerate(cfg, apiKey, fakeDiff, HttpClient.Version.HTTP_1_1);
         return new ProbeResult(PROTO_HTTP_1_1, reply);
     }
 
@@ -78,8 +79,9 @@ public final class AiCommitClient {
         return null;
     }
 
-    private static String doGenerate(@NotNull AiCommitSettings.State cfg, @NotNull String gitDiff,
-                                    @NotNull HttpClient.Version version) throws Exception {
+    private static String doGenerate(@NotNull AiCommitSettings.State cfg, @NotNull String apiKey,
+                                     @NotNull String gitDiff,
+                                     @NotNull HttpClient.Version version) throws Exception {
         String url = stripTrailingSlash(cfg.baseUrl) + "/chat/completions";
         String body = buildRequestBody(cfg, gitDiff);
 
@@ -88,13 +90,14 @@ public final class AiCommitClient {
                 .connectTimeout(Duration.ofSeconds(Math.max(5, cfg.timeoutSeconds)))
                 .build();
 
+        int reqTimeout = Math.max(5, cfg.timeoutSeconds);
         HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(url))
-                .timeout(Duration.ofSeconds(cfg.timeoutSeconds))
+                .timeout(Duration.ofSeconds(reqTimeout))
                 .header("Content-Type", "application/json; charset=utf-8")
                 .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));
-        if (cfg.apiKey != null && !cfg.apiKey.isEmpty()) {
-            reqBuilder.header("Authorization", "Bearer " + cfg.apiKey);
+        if (apiKey != null && !apiKey.isEmpty()) {
+            reqBuilder.header("Authorization", "Bearer " + apiKey);
         }
 
         HttpResponse<String> resp = client.send(reqBuilder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));

@@ -26,6 +26,13 @@
           <li>配置入口：Settings → Tools → AI Commit Message</li>
         </ul>
     </li>
+    <li><b>hx ext 全局设置</b>：Settings → Other Settings → HxExt Settings，默认全部勾选。
+        <ul>
+          <li>隐藏免费使用按钮（Start Free Trial）</li>
+          <li>隐藏 JetBrains AI 按钮</li>
+          <li>开启 AI commits：取消勾选则提交面板不展示 AI 生成按钮</li>
+        </ul>
+    </li>
   </ol>
   ]]></description>
 
@@ -55,10 +62,16 @@
 
   <extensions defaultExtensionNs="com.intellij">
     <applicationService serviceImplementation="com.huathy.ideaext.ai.AiCommitSettings"/>
+    <applicationService serviceImplementation="com.huathy.ideaext.HxExtSettings"/>
     <applicationConfigurable parentId="tools"
                             id="idea-ext-hx.ai-commit"
                             displayName="AI Commit Message"
                             instance="com.huathy.ideaext.ai.AiCommitConfigurable"/>
+    <!-- parentId="other" 为 IDE 内置 "Other Settings" 分组（groupConfigurable id="other"） -->
+    <applicationConfigurable parentId="other"
+                            id="idea-ext-hx.settings"
+                            displayName="HxExt Settings"
+                            instance="com.huathy.ideaext.HxExtConfigurable"/>
   </extensions>
 
   <actions>

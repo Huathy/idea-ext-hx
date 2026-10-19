@@ -12,8 +12,7 @@
 [CmdletBinding()]
 param(
     [string[]]$IdeaHomes = @(
-        "D:\Program Files\JetBrains\IntelliJ IDEA 2026.1",
-        "C:\Program Files\JetBrains\IntelliJ IDEA 2025.1"
+        "D:\Program Files\JetBrains\IntelliJ IDEA 2026.1"
     ),
     [switch]$NoInstall
 )

@@ -1,22 +1,39 @@
 package com.huathy.ideaext.ai;
 
+import com.intellij.credentialStore.EncryptionSupport;
+import com.intellij.credentialStore.EncryptionSupportKt;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.components.PersistentStateComponent;
+import com.intellij.openapi.components.State;
+import com.intellij.openapi.components.Storage;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 
 /**
  * AI 提交信息生成器的配置状态（应用级持久化）。
  *
- * <p>支持自定义：</p>
- * <ul>
- *   <li>AI 供应商：baseUrl + apiKey + model（兼容 OpenAI Chat Completions 协议）</li>
- *   <li>请求模板：可编辑 HTTP body 模板，含 ${model} ${prompt} ${diff} 占位符</li>
- *   <li>响应解析路径：如 choices[0].message.content</li>
- *   <li>提示词模板：默认为约定式提交信息生成器，可自定义；含 ${customInstructions} ${gitContext} 占位符</li>
- * </ul>
+ * <p>应用级 service（{@code <applicationService>}），全 IDE 单例，所有项目共享同一份配置，
+ * 配置写入 {@code idea-ext-hx-ai-commit.xml}，重启/换项目都不丢。</p>
+ *
+ * <p>apiKey 加密后落盘：写时用 {@link EncryptionSupport}（Windows 走 Crypt32/DPAPI，
+ * 其他平台走内置 AES）加密字节，base64 存进 {@link State#apiKeyEncrypted}；
+ * 读时解密还原。明文从不落盘。</p>
  */
+@State(
+        name = "com.huathy.ideaext.ai.AiCommitSettings",
+        storages = {@Storage("idea-ext-hx-ai-commit.xml")}
+)
 public final class AiCommitSettings implements PersistentStateComponent<AiCommitSettings.State> {
+
+    /** 加密器：Windows = DPAPI（机器绑定，真加密）；其他平台 = 内置 AES（混淆级）。 */
+    private static final EncryptionSupport ENCRYPTION =
+            EncryptionSupportKt.createBuiltInOrCrypt32EncryptionSupport(true);
+
+    /** 明文 apiKey 缓存：首次 getApiKey 解密后驻留内存，避免每次请求都解密。 */
+    private String cachedApiKey = null;
 
     public static final String DEFAULT_PROMPT_TEMPLATE =
             "# 约定式提交信息生成器\n" +
@@ -66,15 +83,20 @@ public final class AiCommitSettings implements PersistentStateComponent<AiCommit
             "**仅返回提交信息，不要其他内容。**";
 
     public static final String DEFAULT_REQUEST_TEMPLATE =
-            "{\"model\":\"${model}\",\"messages\":[{\"role\":\"system\",\"content\":${prompt}},"
+            "{\"model\":${model},\"messages\":[{\"role\":\"system\",\"content\":${prompt}},"
             + "{\"role\":\"user\",\"content\":${diff}}],\"temperature\":0.2,\"stream\":false}";
 
     public static final String DEFAULT_RESPONSE_PATH = "choices[0].message.content";
 
     public static final class State {
+        /** 开启 AI commits：由 hx ext settings 页面管理；关闭时提交面板不展示 AI 生成按钮。 */
         public boolean enabled = true;
         public String baseUrl = "https://api.openai.com/v1";
-        public String apiKey = "";
+        /**
+         * apiKey 密文：base64(Encrypt(plaintext))。明文从不落盘。
+         * 旧版明文 apiKey 字段已废弃；读到旧值会自动迁移加密。
+         */
+        public String apiKeyEncrypted = "";
         public String model = "gpt-4o";
         public int timeoutSeconds = 30;
         public String promptTemplate = DEFAULT_PROMPT_TEMPLATE;
@@ -96,7 +118,59 @@ public final class AiCommitSettings implements PersistentStateComponent<AiCommit
 
     @Override
     public void loadState(@NotNull State loaded) {
+        // 迁移旧模板："${model}" 多余引号与 jsonEscape 叠加产出非法 JSON
+        if (loaded.requestTemplate != null
+                && loaded.requestTemplate.contains("\"${model}\"")) {
+            loaded.requestTemplate = loaded.requestTemplate.replace("\"${model}\"", "${model}");
+        }
         this.state = loaded;
+        // 旧版（或上一版 PasswordSafe）切到加密落盘后，缓存失效，下次 getApiKey 重新解密
+        this.cachedApiKey = null;
+    }
+
+    /** 读取 apiKey：解密 {@link State#apiKeyEncrypted} 还原明文，解密结果驻留内存缓存。 */
+    @NotNull
+    public String getApiKey() {
+        if (cachedApiKey != null) {
+            return cachedApiKey;
+        }
+        String cipher = state.apiKeyEncrypted;
+        if (cipher == null || cipher.isEmpty()) {
+            cachedApiKey = "";
+            return cachedApiKey;
+        }
+        try {
+            byte[] enc = Base64.getDecoder().decode(cipher);
+            byte[] plain = ENCRYPTION.decrypt(enc);
+            cachedApiKey = plain == null ? "" : new String(plain, StandardCharsets.UTF_8);
+        } catch (Throwable t) {
+            // 解密失败（换机器/换 OS 导致 DPAPI 密文无法解）：当作空，让用户重填
+            cachedApiKey = "";
+        }
+        return cachedApiKey;
+    }
+
+    /** 写入 apiKey：明文加密后 base64 存进 State，随 @State 落盘；同时刷新内存缓存。 */
+    public void setApiKey(@Nullable String apiKey) {
+        String safe = apiKey == null ? "" : apiKey;
+        if (safe.isEmpty()) {
+            state.apiKeyEncrypted = "";
+        } else {
+            try {
+                byte[] enc = ENCRYPTION.encrypt(safe.getBytes(StandardCharsets.UTF_8));
+                state.apiKeyEncrypted = enc == null ? "" : Base64.getEncoder().encodeToString(enc);
+            } catch (Throwable t) {
+                // 加密失败：明文不落盘，宁可让用户重填也不裸存
+                state.apiKeyEncrypted = "";
+            }
+        }
+        cachedApiKey = safe;
+    }
+
+    /** "开启 AI commits" 开关的当前值；服务不可用时按默认值（开启）处理。 */
+    public static boolean isAiCommitsEnabled() {
+        AiCommitSettings settings = getInstance();
+        return settings == null || settings.getState().enabled;
     }
 
     @Nullable

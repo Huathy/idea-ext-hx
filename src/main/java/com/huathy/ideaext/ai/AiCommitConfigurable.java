@@ -25,10 +25,10 @@ public final class AiCommitConfigurable implements SearchableConfigurable {
 
     private static final String ID = "idea-ext-hx.ai-commit";
 
+    private AiCommitSettings settings;
     private AiCommitSettings.State state;
     private JComponent root;
 
-    private JCheckBox enabled;
     private JBTextField baseUrl;
     private JPasswordField apiKey;
     private JCheckBox showKey;
@@ -56,7 +56,7 @@ public final class AiCommitConfigurable implements SearchableConfigurable {
     @Nullable
     @Override
     public JComponent createComponent() {
-        AiCommitSettings settings = AiCommitSettings.getInstance();
+        settings = AiCommitSettings.getInstance();
         state = settings == null ? new AiCommitSettings.State() : settings.getState();
 
         root = new JBPanel<>(new GridBagLayout());
@@ -66,14 +66,16 @@ public final class AiCommitConfigurable implements SearchableConfigurable {
         c.fill = GridBagConstraints.HORIZONTAL;
         c.weightx = 1.0;
 
-        enabled = new JCheckBox("启用 AI 提交信息生成", state.enabled);
+        // "开启 AI commits" 总开关已移至 Settings → Other Settings → hx ext settings
+        JBLabel moved = new JBLabel("「开启 AI commits」开关已移至 Settings → Other Settings → HxExt Settings。");
+        moved.setForeground(UIManager.getColor("Label.infoForeground"));
         c.gridx = 0; c.gridy = 0; c.gridwidth = 3;
-        root.add(enabled, c);
+        root.add(moved, c);
 
         int row = 1;
         baseUrl = new JBTextField(state.baseUrl);
         model = new JBTextField(state.model);
-        apiKey = new JPasswordField(state.apiKey);
+        apiKey = new JPasswordField(settings == null ? "" : settings.getApiKey());
         apiKey.setEchoChar('*');
         showKey = new JCheckBox("显示明文");
         showKey.addActionListener(e -> apiKey.setEchoChar(showKey.isSelected() ? (char) 0 : '*'));
@@ -142,7 +144,7 @@ public final class AiCommitConfigurable implements SearchableConfigurable {
         AiCommitSettings.State cfgProbe = new AiCommitSettings.State();
         cfgProbe.enabled = true;
         cfgProbe.baseUrl = baseUrl.getText().trim();
-        cfgProbe.apiKey = new String(apiKey.getPassword());
+        final String probeApiKey = new String(apiKey.getPassword());
         cfgProbe.model = model.getText().trim();
         cfgProbe.timeoutSeconds = parseInt(timeout.getText(), 30);
         cfgProbe.maxDiffBytes = 1000;
@@ -160,7 +162,7 @@ public final class AiCommitConfigurable implements SearchableConfigurable {
             String text;
             String proto = null;
             try {
-                AiCommitClient.ProbeResult probe = AiCommitClient.test(cfgProbe);
+                AiCommitClient.ProbeResult probe = AiCommitClient.test(cfgProbe, probeApiKey);
                 proto = probe.protocol;
                 String reply = probe.reply;
                 String shortReply = reply.length() > 60 ? reply.substring(0, 60) + "…" : reply;
@@ -185,10 +187,10 @@ public final class AiCommitConfigurable implements SearchableConfigurable {
 
     @Override
     public boolean isModified() {
+        String currentApiKey = settings == null ? "" : settings.getApiKey();
         return state == null
-                || enabled.isSelected() != state.enabled
                 || !baseUrl.getText().equals(state.baseUrl)
-                || !new String(apiKey.getPassword()).equals(state.apiKey)
+                || !new String(apiKey.getPassword()).equals(currentApiKey)
                 || !model.getText().equals(state.model)
                 || !timeout.getText().equals(String.valueOf(state.timeoutSeconds))
                 || !maxDiffBytes.getText().equals(String.valueOf(state.maxDiffBytes))
@@ -201,9 +203,10 @@ public final class AiCommitConfigurable implements SearchableConfigurable {
     @Override
     public void apply() {
         if (state == null) return;
-        state.enabled = enabled.isSelected();
         state.baseUrl = baseUrl.getText().trim();
-        state.apiKey = new String(apiKey.getPassword());
+        if (settings != null) {
+            settings.setApiKey(new String(apiKey.getPassword()));
+        }
         state.model = model.getText().trim();
         state.timeoutSeconds = parseInt(timeout.getText(), 30);
         state.maxDiffBytes = parseInt(maxDiffBytes.getText(), 60000);

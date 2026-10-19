@@ -42,6 +42,35 @@ IntelliJ IDEA 实用增强工具集。零 Gradle/Maven/网络，直接以本机 
 
 兼容 OpenAI Chat Completions 协议；改 Base URL/模型/请求模板/响应路径即可适配其他兼容服务。
 
+### 3. 隐藏 JetBrains AI 入口图标
+
+移除状态栏的 **AI Assistant** 入口图标，除非真正安装并启用了 AI 插件。
+
+| 项 | 值 |
+|---|---|
+| 状态栏 widget id | `AIAssistant`（`LangExtensions.xml` 中作为 order 锚点） |
+| 主工具栏 group | `MainToolbarRight`，注销实现 `AiInternalUiComponentMarker.AIAction` 的 action |
+| 组件兜底 | 递归移除被 `AiInternalUiComponentMarker.isAiComponent` 标记的组件 |
+
+**原理**：
+1. 检测是否安装并启用了 AI 插件：遍历 `PluginManagerCore.getLoadedPlugins()`，匹配 name/id 含 `AI Assistant`（`com.intellij.aiAssistant` / `com.intellij.ai`）且 `isEnabled`。命中则保留入口、仅低频复查。
+2. 未命中则 `StatusBar.removeWidget("AIAssistant")` 移除状态栏入口，并注销主工具栏右侧的 AI action。
+3. `Alarm` 周期扫描（3s 快扫 / 30s 兜底）所有 `IdeFrame`，防止 widget 被平台重建复活；组件树递归兜底移除被标记的 AI 组件。
+
+> 注：IDEA 2026.1 起 JetBrains AI 为平台内置（`AiInternalUiComponentMarker` 为 stub，`isAiComponent` 恒 false），无独立插件 descriptor。此时检测恒不命中 → 持续隐藏入口。若安装了 Marketplace 独立 AI 插件（name/id 命中），入口自动保留。
+
+### 4. hx ext settings（全局开关）
+
+Settings → Other Settings → **HxExt Settings**，三个开关默认全部勾选：
+
+| 开关 | 作用 | 生效方式 |
+|---|---|---|
+| 隐藏免费使用按钮 | 隐藏主工具栏 "Start Free Trial"（见 1） | 重启 IDE |
+| 隐藏 JetBrains AI 按钮 | 隐藏 JetBrains AI 入口（见 3） | 重启 IDE |
+| 开启 AI commits | 勾选时提交面板显示 "AI 生成提交信息" 按钮（见 2），取消则隐藏 | 无需重启 |
+
+> "开启 AI commits" 原位于 Settings → Tools → AI Commit Message，现统一由 HxExt Settings 管理；AI Commit Message 页保留供应商、模型、提示词等配置。
+
 ## 构建与安装
 
 依赖：JDK 17+（开发机 JDK 21 可用）。
@@ -75,6 +104,9 @@ idea-ext-hx/
     ├── java/com/huathy/ideaext/
     │   ├── TrialPromotionHider.java            # 入口：AppLifecycleListener
     │   ├── TrialButtonHider.java               # 隐藏试用按钮
+    │   ├── AiAssistantEntryHider.java          # 隐藏 JetBrains AI 入口
+    │   ├── HxExtSettings.java                  # 全局开关状态（持久化）
+    │   ├── HxExtConfigurable.java              # hx ext settings 设置页
     │   └── ai/
     │       ├── AiCommitSettings.java           # 配置状态（持久化）
     │       ├── AiCommitConfigurable.java       # Settings UI
