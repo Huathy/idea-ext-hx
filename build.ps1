@@ -24,7 +24,7 @@ $srcDir   = Join-Path $root "src\main\java"
 $resDir   = Join-Path $root "src\main\resources"
 $buildDir = Join-Path $root "build"
 $classes  = Join-Path $buildDir "classes"
-$jarName  = "idea-ext-hx-1.1.0.jar"
+$jarName  = "idea-ext-hx-1.2.0.jar"
 
 # ---------- 1. 濠电偞鎸搁幊鎰板箖?----------
 if (Test-Path -LiteralPath $buildDir) {
@@ -39,7 +39,13 @@ if (-not $compileHome) {
 }
 Write-Host "Using compile classpath from: $compileHome"
 
-$classPath = Join-Path $compileHome "lib\*"
+$classPathParts = @(Join-Path $compileHome "lib\*")
+# RemoveFromVcsAction 需要 Git4Idea（plugins/vcs-git）中的类
+$gitLib = Join-Path $compileHome "plugins\vcs-git\lib"
+if (Test-Path -LiteralPath $gitLib) {
+    $classPathParts += (Join-Path $gitLib "*")
+}
+$classPath = $classPathParts -join ";"
 
 # ---------- 3. 缂傚倸鍊归悧鐐烘儊?----------
 $sources = Get-ChildItem -LiteralPath $srcDir -Recurse -Filter "*.java" |

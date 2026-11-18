@@ -1,7 +1,7 @@
 <idea-plugin url="https://github.com/huathy/idea-ext-hx" require-restart="false">
   <id>com.huathy.idea-ext-hx</id>
   <name>Idea Ext HX</name>
-  <version>1.1.0</version>
+  <version>1.2.0</version>
   <vendor name="huathy" url="https://github.com/huathy"/>
 
   <description><![CDATA[
@@ -33,10 +33,27 @@
           <li>开启 AI commits：取消勾选则提交面板不展示 AI 生成按钮</li>
         </ul>
     </li>
+    <li><b>Remove from VCS</b>：补齐 IDEA 缺失的反向操作，文件 / 文件夹右键即可从版本控制移除。
+        <ul>
+          <li>IDE 只有 "Add to VCS"，本插件补上 "Remove from VCS"（取消跟踪，磁盘文件保留）</li>
+          <li>与内置 "Add to VCS" 并排：项目视图/编辑器右键的 Git 子菜单、提交面板与变更列表右键菜单</li>
+          <li>执行 git rm --cached -f [-r]，按所属 Git 仓库分组处理，移除前弹窗确认（-f 绕过 staged content 保护）</li>
+          <li>支持多选文件/文件夹与提交面板中勾选的变更；目录会向下探测是否含已跟踪内容</li>
+          <li>仅支持 Git 仓库（Git4Idea 插件，缺失时该动作自动不加载）</li>
+        </ul>
+    </li>
   </ol>
   ]]></description>
 
   <change-notes><![CDATA[
+  <p><b>1.2.0</b></p>
+  <ul>
+    <li>新增功能：Remove from VCS —— 文件/文件夹右键从版本控制移除（git rm --cached -f，保留本地文件）</li>
+    <li>入口与内置 "Add to VCS" 并排：Git 子菜单（文件列表）、提交面板/变更列表右键菜单</li>
+    <li>支持提交面板中勾选的变更，按所属 Git 仓库分组执行，移除前弹窗确认</li>
+    <li>使用 -f 绕过 git 的 staged content 保护，修复「has staged content different from both the file and the HEAD」报错</li>
+    <li>可选依赖 Git4Idea：Git 插件缺失时仅该动作不加载，插件其他功能不受影响</li>
+  </ul>
   <p><b>1.1.0</b></p>
   <ul>
     <li>新增功能：AI 生成约定式提交信息（自定义供应商/协议/提示词）</li>
@@ -54,6 +71,8 @@
 
   <depends>com.intellij.modules.platform</depends>
   <depends>com.intellij.modules.vcs</depends>
+  <!-- 可选依赖：Git4Idea 存在时才加载 idea-ext-hx-git.xml 中的动作 -->
+  <depends optional="true" config-file="idea-ext-hx-git.xml">Git4Idea</depends>
 
   <applicationListeners>
     <listener class="com.huathy.ideaext.TrialPromotionHider"

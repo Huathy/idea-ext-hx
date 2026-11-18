@@ -1,0 +1,18 @@
+<idea-plugin>
+  <!-- 由主描述符 plugin.xml 以可选依赖 Git4Idea 的方式加载（config-file 属性）。
+       仅当 Git 插件存在时注册，避免 Git4Idea 缺失导致本插件整体加载失败。 -->
+  <actions>
+    <action id="IdeaExtHx.RemoveFromVcs"
+            class="com.huathy.ideaext.vcs.RemoveFromVcsAction"
+            text="Remove from VCS"
+            description="从版本控制中移除（保留磁盘文件，仅取消跟踪；支持 Git）"
+            icon="AllIcons.General.Remove">
+      <!-- 提交面板 / 变更列表右键：ChangesViewPopupMenu 会被 ChangesViewPopupMenuShared 引用，
+           所以这里紧跟内置 "Add to VCS" 即可在提交面板与变更列表中同时生效 -->
+      <add-to-group group-id="ChangesViewPopupMenu" anchor="after" relative-to-action="ChangesView.AddUnversioned"/>
+      <!-- 项目视图 / 编辑器右键的 VCS 子菜单（Git）：紧跟内置 "Add to VCS" -->
+      <add-to-group group-id="Vcs.Operations.Popup.VcsAware" anchor="after"
+                    relative-to-action="ChangesView.AddUnversioned"/>
+    </action>
+  </actions>
+</idea-plugin>
